@@ -8,7 +8,7 @@ import { ScrollbarApi, FloatingScrollbar } from "./FloatingScrollbar";
 /**
  * Properties of a scrollable panel
  */
-type PanelProps = {
+type ScrollablePanelProps = {
   showVerticalScrollbar?: boolean;
   showHorizontalScrollbar?: boolean;
   scrollBarSize?: number;
@@ -23,7 +23,7 @@ type PanelProps = {
 /**
  * Represents a scrollable panel with optional scrollbars
  */
-export default function ScrollablePanel({
+export const ScrollablePanel: React.FC<ScrollablePanelProps> = ({
   children,
   showHorizontalScrollbar = true,
   showVerticalScrollbar = true,
@@ -34,7 +34,7 @@ export default function ScrollablePanel({
   sizing,
   onFocus,
   onBlur,
-}: PanelProps) {
+}: ScrollablePanelProps) => {
   const mounted = useRef(false);
   const verticalApi = useRef<ScrollbarApi>();
   const horizontalApi = useRef<ScrollbarApi>();
@@ -162,7 +162,7 @@ export default function ScrollablePanel({
       hostScrollSize: divHost.current.scrollWidth,
     });
   }
-}
+};
 
 /**
  * Handles scrolling keys

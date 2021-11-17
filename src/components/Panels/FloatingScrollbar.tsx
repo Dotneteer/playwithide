@@ -40,7 +40,7 @@ export type ScrollbarApi = {
 /**
  * Scrollbar properties
  */
-type Props = {
+type FloatingScrollbarProps = {
   direction: ElementOrientation;
   barSize: number;
   forceShow: boolean;
@@ -49,14 +49,14 @@ type Props = {
   moved?: (newPosition: number) => void;
 };
 
-export const FloatingScrollbar: React.FC<Props> = ({
+export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
   direction,
   barSize,
   forceShow,
   registerApi,
   sizing,
   moved,
-}: PropsWithChildren<Props>) => {
+}: PropsWithChildren<FloatingScrollbarProps>) => {
   const [barTop, setBarTop] = useState(0);
   const [barLeft, setBarLeft] = useState(0);
   const [barWidth, setBarWidth] = useState(0);
