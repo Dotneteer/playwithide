@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Panel, SplitPanel, VirtualizedList } from "./Panels";
 
 function App() {
-  const [itemsCount, setItemsCount] = useState(10000);
+  const [itemsCount, setItemsCount] = useState(1000);
   return (
     <SplitPanel
       horizontal={true}
-      panel1={
+      panel1={<Panel style={{ background: "red" }} />}
+      panel2={
         <Panel
           style={{ background: "green" }}
           onClick={() => setItemsCount(itemsCount + 1)}
@@ -14,11 +15,10 @@ function App() {
           <VirtualizedList
             itemsCount={itemsCount}
             heightMode="dynamic"
-            renderItem={(index, style) => <div style={{ ...style }} />}
+            renderItem={(index, style) => <div style={{ ...style, height: 32 }}>{`Item #${index}`}</div>}
           />
         </Panel>
       }
-      panel2={<Panel style={{ background: "red" }} />}
       panel1MinSize={100}
       panel2MinSize="25%"
     />

@@ -10,7 +10,7 @@ import {
 /**
  * The minimum size of the scrollbar's handle
  */
-const MIN_HANDLE_SIZE = 20;
+const MIN_HANDLE_SIZE = 6;
 
 /**
  * The orientation of the scrollbar element
