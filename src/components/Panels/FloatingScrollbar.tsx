@@ -10,7 +10,7 @@ import {
 /**
  * The minimum size of the scrollbar's handle
  */
-const MIN_HANDLE_SIZE = 6;
+const MIN_HANDLE_SIZE = 10;
 
 /**
  * The orientation of the scrollbar element
@@ -101,7 +101,7 @@ export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
     left: handleLeft,
     width: handleWidth,
     height: handleHeight,
-    background: "#606060",
+    background: "#a0a0a0",
     opacity: dragging ? 1.0 : pointed || forceShow ? 0.8 : 0.0,
     transitionProperty: "opacity",
     transitionDuration: dragging ? "0s" : "0.5s",
@@ -122,11 +122,15 @@ export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
             startResize(ev);
             setDragging(true);
           }
+          ev.stopPropagation();
         }}
-        onMouseUp={() => {
+        onMouseUp={(ev) => {
           endResize();
           setDragging(false);
           sizing?.(false);
+        }}
+        onClick={(ev) => {
+          ev.stopPropagation();
         }}
       ></div>
     </div>
