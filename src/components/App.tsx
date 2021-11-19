@@ -9,7 +9,7 @@ function App() {
       panel1={<Panel style={{ background: "red" }} />}
       panel2={
         <Panel
-          style={{ background: "green" }}
+          style={{ background: "lightgreen" }}
           onClick={() => setItemsCount(itemsCount + 1)}
         >
           <VirtualizedList

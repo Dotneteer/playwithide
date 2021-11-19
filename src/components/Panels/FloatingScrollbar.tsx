@@ -35,6 +35,7 @@ export type ScrollBarData = {
  */
 export type ScrollbarApi = {
   signHostDimension: (dims: ScrollBarData) => void;
+  display: (forceShow: boolean) => void;
 };
 
 /**
@@ -43,7 +44,7 @@ export type ScrollbarApi = {
 type FloatingScrollbarProps = {
   direction: ElementOrientation;
   barSize: number;
-  forceShow: boolean;
+  forceShow?: boolean;
   registerApi?: (api: ScrollbarApi) => void;
   sizing?: (isSizing: boolean) => void;
   moved?: (newPosition: number) => void;
@@ -52,7 +53,7 @@ type FloatingScrollbarProps = {
 export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
   direction,
   barSize,
-  forceShow,
+  forceShow = false,
   registerApi,
   sizing,
   moved,
@@ -80,7 +81,7 @@ export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
 
   useEffect(() => {
     if (!mounted.current) {
-      registerApi?.({ signHostDimension });
+      registerApi?.({ signHostDimension, display });
       mounted.current = true;
     }
   });
@@ -179,6 +180,14 @@ export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
   }
 
   /**
+   * The parent call this methods to show/hide the scrollbar
+   * @param show Indicates if the scrollbar should be displayed
+   */
+  function display(show: boolean): void {
+    setPointed(show);
+  }
+
+  /**
    * Starts resizing this panel
    */
   function startResize(e: React.MouseEvent): void {
@@ -211,7 +220,7 @@ export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
     const delta =
       (direction === "horizontal" ? e.clientX : e.clientY) -
       gripPosition.current;
-      const maxPosition =
+    const maxPosition =
       dims.current.hostSize -
       (direction === "horizontal" ? handleWidth : handleHeight);
     var newPosition = Math.max(0, startPosition.current + delta);
@@ -219,6 +228,6 @@ export const FloatingScrollbar: React.FC<FloatingScrollbarProps> = ({
     var newScrollPosition =
       (newPosition * (dims.current.hostScrollSize - dims.current.hostSize)) /
       maxPosition;
-      moved?.(newScrollPosition);
+    moved?.(newScrollPosition);
   }
 };
