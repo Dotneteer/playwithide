@@ -102,6 +102,21 @@ export type VirtualizedListProps = {
   calcBatchSize?: number;
 
   /**
+   * Indicatea that scrollbars should be displayed
+   */
+  showScrollbars?: boolean;
+
+  /**
+   * Defers position refreshing while all items are re-measured
+   */
+  deferPositionRefresh?: boolean;
+
+  /**
+   * Scrolling speed when using the mouse wheel
+   */
+  wheelSpeed?: number;
+
+  /**
    * The function that renders a particular item
    */
   renderItem: ItemRenderer;
@@ -147,6 +162,8 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   focusable,
   style,
   calcBatchSize = CALC_BATCH_SIZE,
+  showScrollbars = false,
+  deferPositionRefresh = true,
   renderItem,
   registerApi,
   obtainInitPos,
@@ -160,7 +177,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   const [requestedPos, setRequestedPos] = useState(-1);
   const [elementsToSize, setElementsToSize] =
     useState<Map<number, JSX.Element>>();
-  const [visibleElements, setVisibleElements] = useState<JSX.Element[]>();
+  const [visibleElements, setVisibleElements] = useState<VisibleItem[]>();
 
   // --- Intrinsic state
   const mounted = useRef(false);
@@ -172,6 +189,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     startIndex: -1,
     endIndex: -1,
   });
+  const measuring = useRef(false);
 
   // --- Component host element
   const componentHost = useRef<HTMLDivElement>();
@@ -190,10 +208,9 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       // --- Register the API with the host component
       registerApi?.({
         forceRefresh: (position?: number) => forceRefresh(position),
-        scrollToItemByIndex: (index, withRefresh) =>
-          scrollToItemByIndex(index, withRefresh),
-        scrollToTop: (withRefresh) => scrollToTop(withRefresh),
-        scrollToBottom: (withRefresh) => scrollToBottom(withRefresh),
+        scrollToItemByIndex: (index) => scrollToItemByIndex(index),
+        scrollToTop: () => scrollToTop(),
+        scrollToBottom: () => scrollToBottom(),
         getViewPort: () => getViewPort(),
         ensureVisible: (index: number) => ensureVisible(index),
         focus: () => () => focus(),
@@ -213,6 +230,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   useLayoutEffect(() => {
     // --- Sets up the initial heights
     setInitialHeights();
+    measuring.current = heightMode === "dynamic";
     requestAnimationFrame(() => {
       // --- Process the first batch of elements to measure their size
       processHeightMeasureBatch();
@@ -228,6 +246,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     if (calculationQueue.current.length === 0) {
       // --- No more elements to measure
       setElementsToSize(undefined);
+      measuring.current = false;
     } else {
       // --- Process the nex batch of elements
       processHeightMeasureBatch();
@@ -236,17 +255,13 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elementsToSize]);
 
-  useLayoutEffect(() => {
-    console.log(`Changed: ${componentHost.current}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [componentHost.current]);
-
   useResizeObserver({
     element: componentHost,
     callback: () => {
       // --- Update the scollbar dimensions
       updateScrollbarDimensions();
       updateRequestedPosition();
+      renderVisibleElements();
     },
   });
 
@@ -263,7 +278,6 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     renderVisibleElements();
   }, [visibleElements]);
 
-  console.log("Render");
   return (
     <>
       <div
@@ -274,14 +288,15 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           overflow: "hidden",
           position: "relative",
           height: "100%",
-          outline: "none",
+          //outline: "",
         }}
         onScroll={(e) => {
           // TODO
         }}
-        onWheel={
-          (e) => {}
-          // TODO
+        onWheel={(e) =>
+          setRequestedPos(
+            Math.max(0, scrollPosition.current + (e.deltaY/20) * itemHeight)
+          )
         }
         onKeyDown={(e) => {}}
         onFocus={() => focus?.()}
@@ -295,7 +310,10 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           onMouseEnter={() => displayScrollbars(true)}
           onMouseLeave={() => displayScrollbars(false)}
         >
-          {visibleElements}
+          {visibleElements &&
+            visibleElements.map((ve) => (
+              <React.Fragment key={ve.index}>{ve.item}</React.Fragment>
+            ))}
           <div
             ref={sizerHost}
             style={{
@@ -309,7 +327,6 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
                 <React.Fragment key={item[0]}>{item[1]}</React.Fragment>
               ))}
           </div>
-          This is scrollable
         </div>
       </div>
       <FloatingScrollbar
@@ -317,6 +334,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         barSize={16}
         registerApi={(api) => (verticalApi.current = api)}
         moved={(delta) => setRequestedPos(delta)}
+        forceShow={showScrollbars}
         sizing={(nowSizing) => {
           // TODO
         }}
@@ -326,6 +344,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         barSize={10}
         registerApi={(api) => (horizontalApi.current = api)}
         moved={(delta) => setRequestedPos(delta)}
+        forceShow={showScrollbars}
         sizing={(nowSizing) => {
           // TODO
         }}
@@ -376,7 +395,6 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       // --- Nothing to calculate
       return;
     }
-    const heightInfo = heights.current;
     const batchItems = Math.min(queue.length, calcBatchSize);
 
     const newElementsToSize = new Map<number, JSX.Element>();
@@ -393,14 +411,6 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       }
       var item = renderItem(itemIndex, explicitItemType);
       newElementsToSize.set(itemIndex, item);
-      const top = itemIndex ? heightInfo[itemIndex - 1].top : 0;
-      // TODO: Carry out the real processing
-      const calculatedHeight = 40;
-      heightInfo[itemIndex] = {
-        top: top + calculatedHeight,
-        height: calculatedHeight,
-        resolved: true,
-      };
     }
     firstElementIndex.current = firstIndex;
     setElementsToSize(newElementsToSize);
@@ -415,19 +425,23 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       const heightInfo = heights.current;
       let lastHeightInfo: HeightInfo | null = null;
       let lastIndex = sizerHost.current.childNodes.length;
+      const firstIndex = firstElementIndex.current;
+      let top = firstIndex
+        ? heightInfo[firstIndex - 1].top + heightInfo[firstIndex - 1].height
+        : 0;
       for (let i = 0; i < lastIndex; i++) {
         // --- Get the next element
         const element = sizerHost.current.childNodes[i] as HTMLDivElement;
         const itemIndex = i + firstElementIndex.current;
-        const top = itemIndex ? heightInfo[itemIndex - 1].top : 0;
+        const measuredHeight = element.offsetHeight;
 
         // --- Read the element size and calculate position
-        const measuredHeight = element.offsetHeight;
         lastHeightInfo = heightInfo[itemIndex] = {
-          top: top + measuredHeight,
+          top: top,
           height: measuredHeight,
           resolved: true,
         };
+        top += measuredHeight;
       }
 
       // --- Now, shift the remaining items
@@ -452,6 +466,10 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Let the scrollbars know the new host component dimensions
    */
   function updateScrollbarDimensions(): void {
+    if (deferPositionRefresh && measuring.current) {
+      return;
+    }
+
     const host = componentHost.current;
     verticalApi.current?.signHostDimension({
       hostLeft: host.offsetLeft,
@@ -475,7 +493,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Update the scrollbar's position to the requested one
    */
   function updateRequestedPosition(): void {
-    if (requestedPos >= 0) {
+    if (requestedPos >= 0 && (!deferPositionRefresh || !measuring.current)) {
       componentHost.current.scrollTop = requestedPos;
       scrollPosition.current = componentHost.current.scrollTop;
       scrolled?.(scrollPosition.current);
@@ -488,6 +506,10 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * @returns
    */
   function renderVisibleElements(force = false): void {
+    if (deferPositionRefresh && measuring.current) {
+      return;
+    }
+
     const view = getViewPort();
     if (view.startIndex < 0 || view.endIndex < 0) {
       // --- The viewport is empty
@@ -508,11 +530,15 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     lastViewport.current = view;
 
     // --- Render the elements in the viewport
-    const visible: JSX.Element[] = [];
+    const visible: VisibleItem[] = [];
     for (let i = view.startIndex; i <= view.endIndex; i++) {
-      visible.push(
-        renderItem(i, { ...explicitItemType, top: heights.current[i].top })
-      );
+      visible.push({
+        index: i,
+        item: renderItem(i, {
+          ...explicitItemType,
+          top: heights.current[i].top,
+        }),
+      });
     }
     setVisibleElements(visible);
   }
@@ -539,22 +565,25 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   /**
    * Scrolls to the item with the specified index
    */
-  function scrollToItemByIndex(index: number, withRefresh?: boolean): void {
-    // TODO: Implement this
+  function scrollToItemByIndex(index: number): void {
+    const heightItem = heights.current[index];
+    if (heightItem) {
+      setRequestedPos(heightItem.top);
+    }
   }
 
   /**
    * Scrolls to the top
    */
-  function scrollToTop(withRefresh?: boolean): void {
-    // TODO: Implement this
+  function scrollToTop(): void {
+    setRequestedPos(0);
   }
 
   /**
    * Scrolls to the bottom
    */
-  function scrollToBottom(withRefresh?: boolean): void {
-    // TODO: Implement this
+  function scrollToBottom(): void {
+    setRequestedPos(MAX_LIST_PIXELS);
   }
 
   /**
@@ -599,7 +628,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
 
   /**
    * Ensures that the item with the specified index gets visible
-   * in the current viewport
+   * entirelly in the current viewport
    */
   function ensureVisible(index: number): void {
     // TODO: Implement this
@@ -609,7 +638,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Ensures that the virtualized list gets the focus
    */
   function focus(): void {
-    // TODO: Implement this
+    requestAnimationFrame(() => componentHost.current?.focus());
   }
 };
 
@@ -623,6 +652,14 @@ type HeightInfo = {
   top: number;
   height: number;
   resolved: boolean;
+};
+
+/**
+ * Information about a visible item
+ */
+type VisibleItem = {
+  index: number;
+  item: JSX.Element;
 };
 
 /**
