@@ -33,14 +33,11 @@ export const Panel: React.FC<PanelProps> = ({
     ? "column-reverse"
     : "column";
 
-  useResizeObserver({
-    element: hostRef,
-    callback: () => {
-      onResized?.(
-        hostRef?.current?.offsetWidth ?? -1,
-        hostRef?.current?.offsetHeight ?? -1
-      );
-    },
+  useResizeObserver(hostRef, () => {
+    onResized?.(
+      hostRef?.current?.offsetWidth ?? -1,
+      hostRef?.current?.offsetHeight ?? -1
+    );
   });
 
   return (

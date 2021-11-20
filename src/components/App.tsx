@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Panel, SplitPanel, VirtualizedList } from "./Panels";
-import { VirtualizedListApi } from "./Panels/VirtualizedList";
+import { VirtualizedListApi } from "./VirtualizedList/VirtualizedList";
+import { Tooltip } from "./Tooltip/Tooltip";
 
 const backgrounds = ["red", "green", "blue"];
 
@@ -27,9 +28,11 @@ function App() {
         >
           <div>
             <button onClick={() => vlApi.current?.scrollToTop()}>Top</button>
-            <button onClick={() => vlApi.current?.scrollToBottom()}>
-              Bottom
-            </button>
+            <Tooltip content="Hello!">
+              <button onClick={() => vlApi.current?.scrollToBottom()}>
+                Bottom
+              </button>
+            </Tooltip>
             <button onClick={() => vlApi.current?.scrollToItemByIndex(42)}>
               To #42
             </button>
@@ -203,9 +206,7 @@ function App() {
                 style={{
                   ...style,
                   height:
-                    measureIndex >= 0 && index < measureIndex + 10
-                      ? 100
-                      : 40,
+                    measureIndex >= 0 && index < measureIndex + 10 ? 100 : 40,
                   width: "100%",
                   background:
                     measureIndex >= 0 && index < measureIndex + 10
@@ -213,6 +214,7 @@ function App() {
                         ? "cyan"
                         : "orangered"
                       : backgrounds[index % 3],
+                  overflowY: "hidden",
                 }}
               >
                 {`Long, long, long, long, long, long, long, long, long, long, long, long, long, Item #${index}`}

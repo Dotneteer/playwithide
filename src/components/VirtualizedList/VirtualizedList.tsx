@@ -8,10 +8,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { FloatingScrollbar } from ".";
+import { FloatingScrollbar } from "../Panels";
 import { calculateScrollPositionByKey } from "../../utils/key-helpers";
 import { useResizeObserver } from "../../utils/useResizeObserver";
-import { ScrollbarApi } from "./FloatingScrollbar";
+import { ScrollbarApi } from "../Panels/FloatingScrollbar";
 
 const MAX_LIST_PIXELS = 10_000_000;
 const CALC_BATCH_SIZE = 1000;
@@ -357,43 +357,40 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
 
   // --------------------------------------------------------------------------
   // Respond to the resizing of the host component
-  useResizeObserver({
-    element: componentHost,
-    callback: async () => {
-      const width = componentHost.current.offsetWidth;
+  useResizeObserver(componentHost, async () => {
+    const width = componentHost.current.offsetWidth;
 
-      // --- Check if we need to remeasure items
-      if (
-        lastContainerWidth.current >= 0 &&
-        lastContainerWidth.current !== width &&
-        horizontalRemeasure
-      ) {
-        // --- Let's wait while horizontal position settles down
-        settleCounter.current++;
-        await new Promise((r) => setTimeout(r, horizontalSettleTime));
-        if (settleCounter.current === 1) {
-          // --- Let's keep the top item's position, if required so
-          if (reposition) {
-            positionToIndex.current = getViewPort().startIndex;
-          }
-
-          // --- Let's remeasure the items because of changed horizontal size
-          setInitialHeights();
-          requestAnimationFrame(() => {
-            // --- Process the first batch of elements to measure their size
-            processHeightMeasureBatch();
-          });
+    // --- Check if we need to remeasure items
+    if (
+      lastContainerWidth.current >= 0 &&
+      lastContainerWidth.current !== width &&
+      horizontalRemeasure
+    ) {
+      // --- Let's wait while horizontal position settles down
+      settleCounter.current++;
+      await new Promise((r) => setTimeout(r, horizontalSettleTime));
+      if (settleCounter.current === 1) {
+        // --- Let's keep the top item's position, if required so
+        if (reposition) {
+          positionToIndex.current = getViewPort().startIndex;
         }
-        settleCounter.current--;
-      }
-      lastContainerWidth.current = width;
 
-      // --- Update the UI according to changes
-      updateScrollbarDimensions();
-      updateRequestedPosition();
-      renderVisibleElements();
-      onResized?.(width, componentHost.current.offsetHeight);
-    },
+        // --- Let's remeasure the items because of changed horizontal size
+        setInitialHeights();
+        requestAnimationFrame(() => {
+          // --- Process the first batch of elements to measure their size
+          processHeightMeasureBatch();
+        });
+      }
+      settleCounter.current--;
+    }
+    lastContainerWidth.current = width;
+
+    // --- Update the UI according to changes
+    updateScrollbarDimensions();
+    updateRequestedPosition();
+    renderVisibleElements();
+    onResized?.(width, componentHost.current.offsetHeight);
   });
 
   return (
@@ -617,6 +614,8 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           };
           top += measuredHeight;
         }
+        // --- Set the new height
+        setTotalHeight(top);
       } else {
         // --- All items have their individual size
         let lastHeightInfo: HeightInfo | null = null;

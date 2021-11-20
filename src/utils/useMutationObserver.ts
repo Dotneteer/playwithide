@@ -1,28 +1,26 @@
 import { useEffect, useRef } from "react";
 
-/**
- * Hook that handles the size change of a particular DOM element/component
- */
-export const useResizeObserver = (
+export const useMutationObserver = (
   element: React.MutableRefObject<Element | undefined>,
-  callback: ResizeObserverCallback
+  callback: MutationCallback,
+  config?: MutationObserverInit
 ) => {
   const current = element?.current;
-  const observer = useRef<ResizeObserver>();
+  const observer = useRef<MutationObserver>();
 
   useEffect(() => {
     // --- We are already observing old element
     if (observer?.current && current) {
-      observer.current.unobserve(current);
+      observer.current.disconnect();
     }
-    observer.current = new ResizeObserver(callback);
+    observer.current = new MutationObserver(callback);
     observe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
   const observe = () => {
     if (element && element.current && observer.current) {
-      observer.current.observe(element.current);
+      observer.current.observe(element.current, config);
     }
   };
 };

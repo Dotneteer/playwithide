@@ -4,4 +4,4 @@ export { ColumnPanel } from "./ColumnPanel";
 export { SplitPanel } from "./SplitPanel";
 export { FloatingScrollbar } from "./FloatingScrollbar";
 export { ScrollablePanel } from "./ScrollablePanel";
-export { VirtualizedList } from "./VirtualizedList"
+export { VirtualizedList } from "../VirtualizedList/VirtualizedList"

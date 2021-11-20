@@ -65,11 +65,8 @@ export const ScrollablePanel: React.FC<ScrollablePanelProps> = ({
     }
   });
 
-  useResizeObserver({
-    element: divHost,
-    callback: () => {
-      updateDimensions();
-    },
+  useResizeObserver(divHost, () => {
+    updateDimensions();
   });
 
   return (
