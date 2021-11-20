@@ -65,6 +65,11 @@ export type VirtualizedListApi = {
    * Ensures that the virtualized list gets the focus
    */
   focus: () => void;
+
+  /**
+   * Initiates remeasuring the specified range of items
+   */
+  remeasure: (start: number, end: number) => void;
 };
 
 /**
@@ -197,6 +202,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   const [elementsToMeasure, setElementsToSize] =
     useState<Map<number, JSX.Element>>();
   const [visibleElements, setVisibleElements] = useState<VisibleItem[]>();
+  const [remeasureTrigger, setRemeasureTrigger] = useState(0);
 
   // --- Intrinsic state
   const mounted = useRef(false);
@@ -204,6 +210,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   const firstElementIndex = useRef(-1);
   const calculationQueue = useRef<number[]>([]);
   const cancelCalculation = useRef(false);
+  const batchQueue = useRef<Viewport[]>();
   const scrollPosition = useRef(0);
   const lastViewport = useRef<Viewport>({
     startIndex: -1,
@@ -235,6 +242,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         getViewPort: () => getViewPort(),
         ensureVisible: (index, location) => ensureVisible(index, location),
         focus: () => () => focus(),
+        remeasure: (start, end) => remeasure(start, end),
       });
     }
 
@@ -262,6 +270,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       onViewPortChanged(vp.startIndex, vp.endIndex);
     }
 
+    // --- Navigate to the specified initial position
     const initPosition = obtainInitPos?.();
     if (initPosition !== null && initPosition !== undefined) {
       setRequestedPos(initPosition < 0 ? MAX_LIST_PIXELS : initPosition);
@@ -296,6 +305,14 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   useLayoutEffect(() => {
     renderVisibleElements();
   }, [visibleElements]);
+
+  // --------------------------------------------------------------------------
+  // Whenever the set a new batch to remeasure, initiate
+  useLayoutEffect(() => {
+    if (remeasureTrigger) {
+      processHeightMeasureBatch();
+    }
+  }, [remeasureTrigger]);
 
   // --------------------------------------------------------------------------
   // Update the UI
@@ -428,8 +445,13 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   function setInitialHeights(): void {
     const initial: HeightInfo[] = [];
     initial.length = itemsCount;
+
+    // --- We put dynamic items into a calculation queue so that later we can
+    // --- measure their dimensions
     const calcQueue: number[] = [];
     calcQueue.length = heightMode === "dynamic" ? itemsCount : 0;
+
+    // --- Start from the top, and iterate through the items
     let top = 0;
     for (let i = 0; i < itemsCount; i++) {
       initial[i] = {
@@ -438,9 +460,13 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         resolved: heightMode === "fixed",
       };
       top += itemHeight;
+
+      // --- Put the dynamic item into the calculation queue
       if (heightMode === "dynamic") {
         calcQueue[i] = i;
       }
+
+      // --- Do not allow arbitrarily long lists
       if (top > MAX_LIST_PIXELS) {
         throw new Error(
           `The total height of the virtualized list cannot be greater than ${MAX_LIST_PIXELS}. ` +
@@ -448,9 +474,14 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         );
       }
     }
+
+    // --- Prepare calculations
+    calculationQueue.current = calcQueue;
+    batchQueue.current = [];
+
+    // --- Done.
     heights.current = initial;
     setTotalHeight(top);
-    calculationQueue.current = calcQueue;
   }
 
   /**
@@ -459,8 +490,17 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   function processHeightMeasureBatch(): void {
     const queue = calculationQueue.current;
     if (queue.length === 0) {
-      // --- Nothing to calculate
-      return;
+      // --- Nothing to calculate. Are the prepared remeasure batches?
+      if (batchQueue.current.length > 0) {
+        // --- Yes, push the next batch to the queue
+        const nextBatch = batchQueue.current.shift();
+        for (let i = nextBatch.startIndex; i <= nextBatch.endIndex; i++) {
+          queue.push(i);
+        }
+      } else {
+        // --- No more items to measure
+        return;
+      }
     }
     const batchItems = Math.min(queue.length, calcBatchSize);
 
@@ -715,7 +755,9 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           heightItem.height;
         break;
       case "center":
-        top = heightItem.top - (componentHost.current.offsetHeight - heightItem.height) / 2;
+        top =
+          heightItem.top -
+          (componentHost.current.offsetHeight - heightItem.height) / 2;
         break;
     }
     setRequestedPos(top);
@@ -726,6 +768,17 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    */
   function focus(): void {
     requestAnimationFrame(() => componentHost.current?.focus());
+  }
+
+  /**
+   * Initiates remeasuring the specified range of items
+   */
+  function remeasure(start: number, end: number) {
+    batchQueue.current.push({
+      startIndex: Math.max(0, start),
+      endIndex: Math.min(itemsCount, end),
+    });
+    setRemeasureTrigger(remeasureTrigger + 1);
   }
 };
 

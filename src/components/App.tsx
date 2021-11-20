@@ -5,10 +5,11 @@ import { VirtualizedListApi } from "./Panels/VirtualizedList";
 const backgrounds = ["red", "green", "blue"];
 
 function App() {
-  const [itemsCount, setItemsCount] = useState(10_000);
+  const [itemsCount, setItemsCount] = useState(1_000);
   const [viewport, setViewport] = useState<[number, number]>();
   const [scrollTop, setScrollTop] = useState<number>();
   const [showScrollbars, setShowScrollbars] = useState(true);
+  const [measureIndex, setMeasureIndex] = useState(-1);
 
   const vlApi = useRef<VirtualizedListApi>();
   return (
@@ -45,6 +46,15 @@ function App() {
             <button onClick={() => vlApi.current?.ensureVisible(300, "center")}>
               #300 (center)
             </button>
+            <button
+              onClick={() => {
+                const newIndex = measureIndex < 0 ? 0 : measureIndex + 10;
+                setMeasureIndex(newIndex);
+                vlApi.current?.remeasure(newIndex, newIndex + 10);
+              }}
+            >
+              Re-measure +10
+            </button>
           </div>
           {viewport && (
             <span>
@@ -68,15 +78,23 @@ function App() {
               <div
                 style={{
                   ...style,
-                  height: 30 + (index % 8) * 8,
+                  height:
+                    measureIndex >= 0 && index < measureIndex + 10
+                      ? 100
+                      : 30 + (index % 8) * 8,
                   width: "100%",
-                  background: backgrounds[index % 3],
+                  background:
+                    measureIndex >= 0 && index < measureIndex + 10
+                      ? index % 2
+                        ? "cyan"
+                        : "orangered"
+                      : backgrounds[index % 3],
                 }}
               >{`Item #${index}`}</div>
             )}
             onViewPortChanged={(s, e) => setViewport([s, e])}
             onScrolled={(t) => setScrollTop(t)}
-            //obtainInitPos={() => 1234}
+            // obtainInitPos={() => 1234}
           />
         </Panel>
       }
