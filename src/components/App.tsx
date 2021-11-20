@@ -12,6 +12,8 @@ function App() {
   const [measureIndex, setMeasureIndex] = useState(-1);
 
   const vlApi = useRef<VirtualizedListApi>();
+
+  // --- Fix size scenario
   return (
     <SplitPanel
       horizontal={true}
@@ -55,6 +57,9 @@ function App() {
             >
               Re-measure +10
             </button>
+            <button onClick={() => vlApi.current?.forceRefresh()}>
+              Force refresh
+            </button>
           </div>
           {viewport && (
             <span>
@@ -64,15 +69,99 @@ function App() {
           )}
         </Panel>
       }
+      // ======================================================================
+      // #1: Fix size scenario
+      // ======================================================================
+      // panel2={
+      //   <Panel style={{ background: "cyan" }}>
+      //     <VirtualizedList
+      //       focusable={true}
+      //       itemsCount={itemsCount}
+      //       heightMode="fix"
+      //       itemHeight={30}
+      //       showScrollbars={showScrollbars}
+      //       wheelSpeed={0.25}
+      //       horizontalRemeasure={true}
+      //       registerApi={(api) => (vlApi.current = api)}
+      //       renderItem={(index, style) => (
+      //         <div
+      //           style={{
+      //             ...style,
+      //             height:
+      //               measureIndex >= 0 && index < measureIndex + 10 ? 100 : 30,
+      //             width: "100%",
+      //             whiteSpace: "nowrap",
+      //             background:
+      //               measureIndex >= 0 && index < measureIndex + 10
+      //                 ? index % 2
+      //                   ? "cyan"
+      //                   : "orangered"
+      //                 : backgrounds[index % 3],
+      //           }}
+      //         >
+      //           {`Item #${index}`}
+      //         </div>
+      //       )}
+      //       onViewPortChanged={(s, e) => setViewport([s, e])}
+      //       onScrolled={(t) => setScrollTop(t)}
+      //     />
+      //   </Panel>
+      // }
+
+      // ======================================================================
+      // #2: Variable size scenario
+      // ======================================================================
+      // panel2={
+      //   <Panel style={{ background: "cyan" }}>
+      //     <VirtualizedList
+      //       focusable={true}
+      //       itemsCount={itemsCount}
+      //       heightMode="variable"
+      //       itemHeight={30}
+      //       showScrollbars={showScrollbars}
+      //       wheelSpeed={0.25}
+      //       registerApi={(api) => (vlApi.current = api)}
+      //       renderItem={(index, style) => (
+      //         <div
+      //           style={{
+      //             ...style,
+      //             height:
+      //               measureIndex >= 0 && index < measureIndex + 10
+      //                 ? 100
+      //                 : 30 + (index % 8) * 8,
+      //             width: "100%",
+      //             whiteSpace: "nowrap",
+      //             background:
+      //               measureIndex >= 0 && index < measureIndex + 10
+      //                 ? index % 2
+      //                   ? "cyan"
+      //                   : "orangered"
+      //                 : backgrounds[index % 3],
+      //           }}
+      //         >
+      //           {`Item #${index}`}
+      //         </div>
+      //       )}
+      //       onViewPortChanged={(s, e) => setViewport([s, e])}
+      //       onScrolled={(t) => setScrollTop(t)}
+      //     />
+      //   </Panel>
+      // }
+
+      // ======================================================================
+      // #3: Variable size scenario with horizontal rem-measuring
+      // ======================================================================
       panel2={
         <Panel style={{ background: "cyan" }}>
           <VirtualizedList
             focusable={true}
             itemsCount={itemsCount}
-            heightMode="dynamic"
+            heightMode="variable"
             itemHeight={30}
             showScrollbars={showScrollbars}
             wheelSpeed={0.25}
+            horizontalRemeasure={true}
+            reposition={true}
             registerApi={(api) => (vlApi.current = api)}
             renderItem={(index, style) => (
               <div
@@ -81,7 +170,7 @@ function App() {
                   height:
                     measureIndex >= 0 && index < measureIndex + 10
                       ? 100
-                      : 30 + (index % 8) * 8,
+                      : "auto", // 30 + (index % 8) * 8,
                   width: "100%",
                   background:
                     measureIndex >= 0 && index < measureIndex + 10
@@ -90,11 +179,12 @@ function App() {
                         : "orangered"
                       : backgrounds[index % 3],
                 }}
-              >{`Item #${index}`}</div>
+              >
+                {`Long, long, long, long, long, long, long, long, long, long, long, long, long, Item #${index}`}
+              </div>
             )}
             onViewPortChanged={(s, e) => setViewport([s, e])}
             onScrolled={(t) => setScrollTop(t)}
-            // obtainInitPos={() => 1234}
           />
         </Panel>
       }

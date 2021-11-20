@@ -75,7 +75,7 @@ export type VirtualizedListApi = {
 /**
  * The item height mode of the virtualized list
  */
-export type ItemHeightMode = "fixed" | "dynamic";
+export type ItemHeightMode = "fix" | "variable";
 
 /**
  * The properties of the virtualized list
@@ -87,7 +87,7 @@ export type VirtualizedListProps = {
   itemsCount: number;
 
   /**
-   * Item height mode
+   * Item height mode ("fixed" | "dynamic")
    */
   heightMode?: ItemHeightMode;
 
@@ -121,6 +121,22 @@ export type VirtualizedListProps = {
    * Defers position refreshing while all items are re-measured
    */
   deferPositionRefresh?: boolean;
+
+  /**
+   * Indicates that item size should be remeasured when the horizontal
+   * size of the list container changes
+   */
+  horizontalRemeasure?: boolean;
+
+  /**
+   * Number of milliseconds to wait while horizontal sizing settles
+   */
+  horizontalSettleTime?: number;
+
+  /**
+   * Keep the index position and set it back after re-measure
+   */
+  reposition?: boolean;
 
   /**
    * Scrolling speed when using the mouse wheel
@@ -185,6 +201,9 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   calcBatchSize = CALC_BATCH_SIZE,
   showScrollbars = false,
   deferPositionRefresh = true,
+  horizontalRemeasure = false,
+  horizontalSettleTime = 200,
+  reposition = false,
   wheelSpeed = 1.0,
   renderItem,
   registerApi,
@@ -203,6 +222,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     useState<Map<number, JSX.Element>>();
   const [visibleElements, setVisibleElements] = useState<VisibleItem[]>();
   const [remeasureTrigger, setRemeasureTrigger] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // --- Intrinsic state
   const mounted = useRef(false);
@@ -217,6 +237,9 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     endIndex: -1,
   });
   const measuring = useRef(false);
+  const lastContainerWidth = useRef(-1);
+  const settleCounter = useRef(0);
+  const positionToIndex = useRef(-1);
 
   // --- Other references
   const componentHost = useRef<HTMLDivElement>();
@@ -261,12 +284,11 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   useLayoutEffect(() => {
     // --- Sets up the initial heights
     setInitialHeights();
-    measuring.current = heightMode === "dynamic";
+    measuring.current = heightMode === "variable";
 
     if (!measuring.current) {
       // --- Notify the host about the viewport change
       const vp = getViewPort();
-      console.log(vp);
       onViewPortChanged(vp.startIndex, vp.endIndex);
     }
 
@@ -276,10 +298,8 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       setRequestedPos(initPosition < 0 ? MAX_LIST_PIXELS : initPosition);
     }
 
-    requestAnimationFrame(() => {
-      // --- Process the first batch of elements to measure their size
-      processHeightMeasureBatch();
-    });
+    // --- Process the first batch of elements to measure their size
+    processHeightMeasureBatchAfterTick();
   }, [itemsCount]);
 
   // --------------------------------------------------------------------------
@@ -288,15 +308,20 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     applyMeasuredItemDimensions();
 
     // --- Is there a next batch?
-    if (calculationQueue.current.length === 0) {
+    if (calculationQueue.current.length > 0) {
+      // --- Process the nex batch of elements
+      processHeightMeasureBatch();
+    } else {
       // --- No more elements to measure
       setElementsToSize(undefined);
 
       // --- We're not measuring anymore
       measuring.current = false;
-    } else {
-      // --- Process the nex batch of elements
-      processHeightMeasureBatch();
+
+      // --- Let's reposition, if asked so
+      if (positionToIndex.current >= 0) {
+        scrollToItemByIndex(positionToIndex.current);
+      }
     }
   }, [elementsToMeasure]);
 
@@ -315,10 +340,15 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   }, [remeasureTrigger]);
 
   // --------------------------------------------------------------------------
+  // Change the requested position
+  useLayoutEffect(() => {
+    updateRequestedPosition();
+  }, [requestedPos]);
+
+  // --------------------------------------------------------------------------
   // Update the UI
   useLayoutEffect(() => {
     updateScrollbarDimensions();
-    updateRequestedPosition();
     renderVisibleElements();
   });
 
@@ -326,15 +356,40 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   // Respond to the resizing of the host component
   useResizeObserver({
     element: componentHost,
-    callback: () => {
+    callback: async () => {
+      const width = componentHost.current.offsetWidth;
+
+      // --- Check if we need to remeasure items
+      if (
+        lastContainerWidth.current >= 0 &&
+        lastContainerWidth.current !== width &&
+        horizontalRemeasure
+      ) {
+        // --- Let's wait while horizontal position settles down
+        settleCounter.current++;
+        await new Promise((r) => setTimeout(r, horizontalSettleTime));
+        if (settleCounter.current === 1) {
+          // --- Let's keep the top item's position, if required so
+          if (reposition) {
+            positionToIndex.current = getViewPort().startIndex;
+          }
+
+          // --- Let's remeasure the items because of changed horizontal size
+          setInitialHeights();
+          requestAnimationFrame(() => {
+            // --- Process the first batch of elements to measure their size
+            processHeightMeasureBatch();
+          });
+        }
+        settleCounter.current--;
+      }
+      lastContainerWidth.current = width;
+
       // --- Update the UI according to changes
       updateScrollbarDimensions();
       updateRequestedPosition();
       renderVisibleElements();
-      onResized?.(
-        componentHost.current.offsetWidth,
-        componentHost.current.offsetHeight
-      );
+      onResized?.(width, componentHost.current.offsetHeight);
     },
   });
 
@@ -406,6 +461,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
             style={{
               display: "block",
               position: "absolute",
+              width: "100%",
               top: MAX_LIST_PIXELS,
             }}
           >
@@ -449,7 +505,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     // --- We put dynamic items into a calculation queue so that later we can
     // --- measure their dimensions
     const calcQueue: number[] = [];
-    calcQueue.length = heightMode === "dynamic" ? itemsCount : 0;
+    calcQueue.length = heightMode === "variable" ? itemsCount : 0;
 
     // --- Start from the top, and iterate through the items
     let top = 0;
@@ -457,12 +513,12 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       initial[i] = {
         top,
         height: itemHeight,
-        resolved: heightMode === "fixed",
+        resolved: heightMode === "fix",
       };
       top += itemHeight;
 
       // --- Put the dynamic item into the calculation queue
-      if (heightMode === "dynamic") {
+      if (heightMode === "variable") {
         calcQueue[i] = i;
       }
 
@@ -523,6 +579,12 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     setElementsToSize(newElementsToSize);
   }
 
+  /**
+   * Process the calculation queue after the next tick
+   */
+  function processHeightMeasureBatchAfterTick(): void {
+    requestAnimationFrame(() => processHeightMeasureBatch());
+  }
   /**
    * Processes the dimensions of the measured items
    */
@@ -668,8 +730,12 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   /**
    * Forces refreshing the list
    */
-  function forceRefresh(position?: number): void {
-    // TODO: Implement this
+  function forceRefresh(scrollPosition?: number): void {
+    if (scrollPosition !== undefined) {
+      setRequestedPos(scrollPosition);
+    } else {
+      setRefreshTrigger(refreshTrigger + 1);
+    }
   }
 
   /**
@@ -774,10 +840,18 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Initiates remeasuring the specified range of items
    */
   function remeasure(start: number, end: number) {
+    // --- Prepare the next remeasure batch
     batchQueue.current.push({
       startIndex: Math.max(0, start),
       endIndex: Math.min(itemsCount, end),
     });
+
+    // --- Let's keep the top item's position, if required so
+    if (reposition) {
+      positionToIndex.current = getViewPort().startIndex;
+    }
+
+    // --- Initiate remeasuring
     setRemeasureTrigger(remeasureTrigger + 1);
   }
 };
@@ -814,5 +888,4 @@ const explicitItemType: CSSProperties = {
   position: "absolute",
   top: 0,
   overflowX: "hidden",
-  whiteSpace: "nowrap",
 };
