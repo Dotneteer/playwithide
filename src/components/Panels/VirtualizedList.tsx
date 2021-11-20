@@ -74,8 +74,11 @@ export type VirtualizedListApi = {
 
 /**
  * The item height mode of the virtualized list
+ * "fix": Use the itemHeight property to set the initial size of items
+ * "first": All items should have the height of the first item
+ * "variable": Calculate the heights of all items
  */
-export type ItemHeightMode = "fix" | "variable";
+export type ItemHeightMode = "fix" | "first" | "variable";
 
 /**
  * The properties of the virtualized list
@@ -202,7 +205,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   showScrollbars = false,
   deferPositionRefresh = true,
   horizontalRemeasure = false,
-  horizontalSettleTime = 200,
+  horizontalSettleTime = 100,
   reposition = false,
   wheelSpeed = 1.0,
   renderItem,
@@ -284,7 +287,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   useLayoutEffect(() => {
     // --- Sets up the initial heights
     setInitialHeights();
-    measuring.current = heightMode === "variable";
+    measuring.current = heightMode === "variable" || heightMode === "first";
 
     if (!measuring.current) {
       // --- Notify the host about the viewport change
@@ -332,7 +335,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   }, [visibleElements]);
 
   // --------------------------------------------------------------------------
-  // Whenever the set a new batch to remeasure, initiate
+  // Whenever there is a new batch to remeasure, initiate
   useLayoutEffect(() => {
     if (remeasureTrigger) {
       processHeightMeasureBatch();
@@ -406,7 +409,6 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           overflow: "hidden",
           position: "relative",
           height: "100%",
-          //outline: "none",
         }}
         onWheel={(e) =>
           setRequestedPos(
@@ -444,7 +446,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           onMouseLeave={() => displayScrollbars(false)}
         >
           {
-            // --- Whenever we have, render the visible elements
+            // --- Whenever we have any, render the visible elements
           }
           {visibleElements &&
             visibleElements.map((ve) => (
@@ -475,6 +477,9 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           </div>
         </div>
       </div>
+      {
+        // --- Vertical scrollbar
+      }
       <FloatingScrollbar
         direction="vertical"
         barSize={16}
@@ -482,6 +487,9 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         moved={(delta) => setRequestedPos(delta)}
         forceShow={showScrollbars}
       />
+      {
+        // --- Horizontal scrollbar
+      }
       <FloatingScrollbar
         direction="horizontal"
         barSize={10}
@@ -505,15 +513,16 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     // --- We put dynamic items into a calculation queue so that later we can
     // --- measure their dimensions
     const calcQueue: number[] = [];
-    calcQueue.length = heightMode === "variable" ? itemsCount : 0;
 
     // --- Start from the top, and iterate through the items
     let top = 0;
+    if (heightMode === "first") {
+      calcQueue[0] = 0;
+    }
     for (let i = 0; i < itemsCount; i++) {
       initial[i] = {
         top,
         height: itemHeight,
-        resolved: heightMode === "fix",
       };
       top += itemHeight;
 
@@ -585,6 +594,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   function processHeightMeasureBatchAfterTick(): void {
     requestAnimationFrame(() => processHeightMeasureBatch());
   }
+
   /**
    * Processes the dimensions of the measured items
    */
@@ -592,41 +602,58 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     if (elementsToMeasure && elementsToMeasure.size > 0) {
       // --- Iterate through the sizes of elements and store them
       const heightInfo = heights.current;
-      let lastHeightInfo: HeightInfo | null = null;
-      let lastIndex = sizerHost.current.childNodes.length;
-      const firstIndex = firstElementIndex.current;
-      let top = firstIndex
-        ? heightInfo[firstIndex - 1].top + heightInfo[firstIndex - 1].height
-        : 0;
-      for (let i = 0; i < lastIndex; i++) {
-        // --- Get the next element
-        const element = sizerHost.current.childNodes[i] as HTMLDivElement;
-        const itemIndex = i + firstElementIndex.current;
-        const measuredHeight = element.offsetHeight;
 
-        // --- Read the element size and calculate position
-        lastHeightInfo = heightInfo[itemIndex] = {
-          top: top,
-          height: measuredHeight,
-          resolved: true,
-        };
-        top += measuredHeight;
-      }
+      if (heightMode === "first") {
+        // --- All items will have the same as as the first
+        const measuredHeight = (
+          sizerHost.current.childNodes[0] as HTMLDivElement
+        ).offsetHeight;
+        let top = 0;
+        for (let i = 0; i < itemsCount; i++) {
+          // --- Get the next element
+          heightInfo[i] = {
+            top: top,
+            height: measuredHeight,
+          };
+          top += measuredHeight;
+        }
+      } else {
+        // --- All items have their individual size
+        let lastHeightInfo: HeightInfo | null = null;
+        let lastIndex = sizerHost.current.childNodes.length;
+        const firstIndex = firstElementIndex.current;
+        let top = firstIndex
+          ? heightInfo[firstIndex - 1].top + heightInfo[firstIndex - 1].height
+          : 0;
+        for (let i = 0; i < lastIndex; i++) {
+          // --- Get the next element
+          const element = sizerHost.current.childNodes[i] as HTMLDivElement;
+          const itemIndex = i + firstElementIndex.current;
+          const measuredHeight = element.offsetHeight;
 
-      // --- Now, shift the remaining items
-      if (lastHeightInfo) {
-        let nextTop = lastHeightInfo.top + lastHeightInfo.height;
-        for (
-          let i = lastIndex + firstElementIndex.current;
-          i < heightInfo.length;
-          i++
-        ) {
-          heightInfo[i].top = nextTop;
-          nextTop += heightInfo[i].height;
+          // --- Read the element size and calculate position
+          lastHeightInfo = heightInfo[itemIndex] = {
+            top: top,
+            height: measuredHeight,
+          };
+          top += measuredHeight;
         }
 
-        // --- Set the new height
-        setTotalHeight(nextTop);
+        // --- Now, shift the remaining items
+        if (lastHeightInfo) {
+          let nextTop = lastHeightInfo.top + lastHeightInfo.height;
+          for (
+            let i = lastIndex + firstElementIndex.current;
+            i < heightInfo.length;
+            i++
+          ) {
+            heightInfo[i].top = nextTop;
+            nextTop += heightInfo[i].height;
+          }
+
+          // --- Set the new height
+          setTotalHeight(nextTop);
+        }
       }
     }
   }
@@ -865,7 +892,6 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
 type HeightInfo = {
   top: number;
   height: number;
-  resolved: boolean;
 };
 
 /**
