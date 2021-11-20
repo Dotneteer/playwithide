@@ -243,6 +243,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   const lastContainerWidth = useRef(-1);
   const settleCounter = useRef(0);
   const positionToIndex = useRef(-1);
+  const forceRenderingVisible = useRef(false);
 
   // --- Other references
   const componentHost = useRef<HTMLDivElement>();
@@ -292,7 +293,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
     if (!measuring.current) {
       // --- Notify the host about the viewport change
       const vp = getViewPort();
-      onViewPortChanged(vp.startIndex, vp.endIndex);
+      onViewPortChanged?.(vp.startIndex, vp.endIndex);
     }
 
     // --- Navigate to the specified initial position
@@ -352,7 +353,8 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   // Update the UI
   useLayoutEffect(() => {
     updateScrollbarDimensions();
-    renderVisibleElements();
+    renderVisibleElements(forceRenderingVisible.current);
+    forceRenderingVisible.current = false;
   });
 
   // --------------------------------------------------------------------------
@@ -406,6 +408,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
           overflow: "hidden",
           position: "relative",
           height: "100%",
+          outline: "none",
         }}
         onWheel={(e) =>
           setRequestedPos(
@@ -757,6 +760,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Forces refreshing the list
    */
   function forceRefresh(scrollPosition?: number): void {
+    forceRenderingVisible.current = true;
     if (scrollPosition !== undefined) {
       setRequestedPos(scrollPosition);
     } else {
@@ -792,7 +796,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Retrieves the current viewport of the virtual list
    */
   function getViewPort(): Viewport {
-    if (!heights.current || !componentHost.current) {
+    if (!heights.current || heights.current.length === 0 || !componentHost.current) {
       return { startIndex: -1, endIndex: -1 };
     }
     var scrollTop = componentHost.current.scrollTop;
