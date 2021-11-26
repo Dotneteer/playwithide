@@ -120,6 +120,7 @@ function App() {
       //       itemsCount={itemsCount}
       //       heightMode="variable"
       //       itemHeight={30}
+      //       reposition = {false}
       //       showScrollbars={showScrollbars}
       //       registerApi={(api) => (vlApi.current = api)}
       //       renderItem={(index, style) => (
@@ -137,7 +138,7 @@ function App() {
       //                 ? index % 2
       //                   ? "cyan"
       //                   : "orangered"
-      //                 : backgrounds[index % 3],
+      //                 : backgrounds[index % 3], 
       //           }}
       //         >
       //           {`Item #${index}`}
@@ -161,7 +162,7 @@ function App() {
       //       itemHeight={30}
       //       showScrollbars={showScrollbars}
       //       horizontalRemeasure={true}
-      //       reposition={true}
+      //       reposition={false}
       //       registerApi={(api) => (vlApi.current = api)}
       //       renderItem={(index, style) => (
       //         <div

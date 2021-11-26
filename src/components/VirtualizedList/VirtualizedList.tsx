@@ -221,7 +221,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   // --- Explicit state
   const [totalHeight, setTotalHeight] = useState(0);
   const [requestedPos, setRequestedPos] = useState(-1);
-  const [elementsToMeasure, setElementsToSize] =
+  const [elementsToMeasure, setElementsToMeasure] =
     useState<Map<number, JSX.Element>>();
   const [visibleElements, setVisibleElements] = useState<VisibleItem[]>();
   const [remeasureTrigger, setRemeasureTrigger] = useState(0);
@@ -317,7 +317,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       processHeightMeasureBatch();
     } else {
       // --- No more elements to measure
-      setElementsToSize(undefined);
+      setElementsToMeasure(undefined);
 
       // --- We're not measuring anymore
       measuring.current = false;
@@ -360,6 +360,11 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   // --------------------------------------------------------------------------
   // Respond to the resizing of the host component
   useResizeObserver(componentHost, async () => {
+    if (!componentHost.current) {
+      // --- We may removed the component host element
+      return;
+    }
+
     const width = componentHost.current.offsetWidth;
 
     // --- Check if we need to remeasure items
@@ -379,10 +384,8 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
 
         // --- Let's remeasure the items because of changed horizontal size
         setInitialHeights();
-        requestAnimationFrame(() => {
-          // --- Process the first batch of elements to measure their size
-          processHeightMeasureBatch();
-        });
+        // --- Process the first batch of elements to measure their size
+        processHeightMeasureBatchAfterTick();
       }
       settleCounter.current--;
     }
@@ -585,7 +588,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       newElementsToSize.set(itemIndex, item);
     }
     firstElementIndex.current = firstIndex;
-    setElementsToSize(newElementsToSize);
+    setElementsToMeasure(newElementsToSize);
   }
 
   /**
@@ -796,7 +799,11 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
    * Retrieves the current viewport of the virtual list
    */
   function getViewPort(): Viewport {
-    if (!heights.current || heights.current.length === 0 || !componentHost.current) {
+    if (
+      !heights.current ||
+      heights.current.length === 0 ||
+      !componentHost.current
+    ) {
       return { startIndex: -1, endIndex: -1 };
     }
     var scrollTop = componentHost.current.scrollTop;
