@@ -221,6 +221,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   // --- Explicit state
   const [totalHeight, setTotalHeight] = useState(0);
   const [requestedPos, setRequestedPos] = useState(-1);
+  const [requestedHorPos, setRequestedHorPos] = useState(-1);
   const [elementsToMeasure, setElementsToMeasure] =
     useState<Map<number, JSX.Element>>();
   const [visibleElements, setVisibleElements] = useState<VisibleItem[]>();
@@ -304,6 +305,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
 
     // --- Process the first batch of elements to measure their size
     processHeightMeasureBatchAfterTick();
+    setVisibleElements([]);
   }, [itemsCount]);
 
   // --------------------------------------------------------------------------
@@ -347,7 +349,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
   // Change the requested position
   useLayoutEffect(() => {
     updateRequestedPosition();
-  }, [requestedPos]);
+  }, [requestedPos, requestedHorPos]);
 
   // --------------------------------------------------------------------------
   // Update the UI
@@ -497,7 +499,7 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
         direction="horizontal"
         barSize={10}
         registerApi={(api) => (horizontalApi.current = api)}
-        moved={(delta) => setRequestedPos(delta)}
+        moved={(delta) => setRequestedHorPos(delta)}
         forceShow={showScrollbars}
       />
     </>
@@ -699,6 +701,10 @@ export const VirtualizedList: React.FC<VirtualizedListProps> = ({
       scrollPosition.current = componentHost.current.scrollTop;
       onScrolled?.(scrollPosition.current);
       setRequestedPos(-1);
+    }
+    if (requestedHorPos >= 0 && (!deferPositionRefresh || !measuring.current)) {
+      componentHost.current.scrollLeft = requestedHorPos;
+      setRequestedHorPos(-1);
     }
   }
 
@@ -923,5 +929,5 @@ type Viewport = { startIndex: number; endIndex: number };
 const explicitItemType: CSSProperties = {
   position: "absolute",
   top: 0,
-  overflowX: "hidden",
+  //overflowX: "hidden",
 };

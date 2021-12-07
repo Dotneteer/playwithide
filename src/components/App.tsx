@@ -63,6 +63,7 @@ function App() {
             <button onClick={() => vlApi.current?.forceRefresh()}>
               Force refresh
             </button>
+            <button onClick={() => setItemsCount(0)}>Zero items</button>
           </div>
           {viewport && (
             <span>
@@ -138,7 +139,7 @@ function App() {
       //                 ? index % 2
       //                   ? "cyan"
       //                   : "orangered"
-      //                 : backgrounds[index % 3], 
+      //                 : backgrounds[index % 3],
       //           }}
       //         >
       //           {`Item #${index}`}
@@ -193,29 +194,68 @@ function App() {
       // ======================================================================
       // #4: First item size scenario
       // ======================================================================
+      // panel2={
+      //   <Panel style={{ background: "cyan" }}>
+      //     <VirtualizedList
+      //       focusable={true}
+      //       itemsCount={itemsCount}
+      //       heightMode="first"
+      //       showScrollbars={showScrollbars}
+      //       reposition={true}
+      //       registerApi={(api) => (vlApi.current = api)}
+      //       renderItem={(index, style) => (
+      //         <div
+      //           style={{
+      //             ...style,
+      //             height:
+      //               measureIndex >= 0 && index < measureIndex + 10 ? 100 : 40,
+      //             width: "100%",
+      //             background:
+      //               measureIndex >= 0 && index < measureIndex + 10
+      //                 ? index % 2
+      //                   ? "cyan"
+      //                   : "orangered"
+      //                 : backgrounds[index % 3],
+      //             overflowY: "hidden",
+      //           }}
+      //         >
+      //           {`Long, long, long, long, long, long, long, long, long, long, long, long, long, Item #${index}`}
+      //         </div>
+      //       )}
+      //       onViewPortChanged={(s, e) => setViewport([s, e])}
+      //       onScrolled={(t) => setScrollTop(t)}
+      //     />
+      //   </Panel>
+      // }
+      // ======================================================================
+      // #5: Variable size scenario, horizontal scrolling
+      // ======================================================================
       panel2={
         <Panel style={{ background: "cyan" }}>
           <VirtualizedList
             focusable={true}
             itemsCount={itemsCount}
-            heightMode="first"
+            heightMode="variable"
+            itemHeight={30}
+            reposition={false}
             showScrollbars={showScrollbars}
-            reposition={true}
             registerApi={(api) => (vlApi.current = api)}
             renderItem={(index, style) => (
               <div
                 style={{
                   ...style,
                   height:
-                    measureIndex >= 0 && index < measureIndex + 10 ? 100 : 40,
-                  width: "100%",
+                    measureIndex >= 0 && index < measureIndex + 10
+                      ? 100
+                      : 30 + (index % 8) * 8,
+                  width: "auto",
+                  whiteSpace: "nowrap",
                   background:
                     measureIndex >= 0 && index < measureIndex + 10
                       ? index % 2
                         ? "cyan"
                         : "orangered"
                       : backgrounds[index % 3],
-                  overflowY: "hidden",
                 }}
               >
                 {`Long, long, long, long, long, long, long, long, long, long, long, long, long, Item #${index}`}
